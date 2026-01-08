@@ -58,7 +58,10 @@ Bash
 python data_clean.py
 
 #### Option 2 (WIP): Docker Execution
-This option currently DOES NOT upload data to SQL Server. Requires the upload_to_sql function call to be commented out in the script.
+If you run this script in a environment (like a basic Docker container) without the **Microsoft ODBC Driver for SQL Server**, the script will:
+1. Throw a `libodbc.so.2` or `ImportError`.
+2. Automatically catch the error.
+3. Save the cleaned data to `output.csv` in the python app directory instead.
 
 Build the Image:
 Bash
@@ -68,9 +71,14 @@ Run the Container:
 Bash
 docker run data_clean
 
+Accessing Output Files:
+Since the script runs inside a container, local files like `output.csv` are not visible by default.
+
 ### Configuration:
 The script is currently configured with the following defaults in the if __name__ == "__main__": block:
 
+File name = '03_Library Systembook.csv'
 Server: STUDENT06
 Database: LibraryProject
 Table: cleaned_library_data
+Output CSV = output.csv

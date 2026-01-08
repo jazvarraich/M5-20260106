@@ -75,8 +75,16 @@ if __name__ == "__main__":
     SQL_SERVER = 'STUDENT06'
     SQL_DATABASE = 'LibraryProject'
     TARGET_TABLE = 'cleaned_library_data'
+    OUTPUT_CSV = 'output.csv'
 
     # Execution
     raw_df = load_data(FILE_NAME)
     clean_df = transform_data(raw_df)
-    upload_to_sql(clean_df, SQL_SERVER, SQL_DATABASE, TARGET_TABLE)
+    try:
+        logging.info("Attempting to upload to SQL Server...")
+        upload_to_sql(clean_df, SQL_SERVER, SQL_DATABASE, TARGET_TABLE)
+    except Exception as e:
+        logging.warning(f"SQL Upload failed: {e}")
+        logging.info(f"Falling back to CSV export. Saving to {OUTPUT_CSV}...")
+        clean_df.to_csv(OUTPUT_CSV, index=False)
+        logging.info("CSV export complete.")
