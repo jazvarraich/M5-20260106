@@ -1,47 +1,76 @@
-# M5-20260106
+Library Data Cleaning Pipeline
+
+This repository contains a Python-based ETL (Extract, Transform, Load) pipeline designed to process raw library book records and upload them to a SQL Server database.
+
+Project Structure:
+python app/: The root directory for the application.
+data_clean.py: The main Python script containing the cleaning logic.
+03_Library Systembook.csv: The raw input data file.
+Data_Cleaning.ipynb: A Jupyter Notebook version of the script for interactive testing and visualisation.
+Dockerfile: Configuration for containerising the application.
+requirements.txt: List of Python dependencies required for both local and Docker environments.
 
 Architecture Diagram:
 See ArchitectureDiagram.png
 
-
 User Stories:
 As a Librarian, I want to upload raw book data to a central spot stop using manual spreadsheets.
-
 As a Data Analyst, I want Python to automatically clean the data to ensure the analysis is reliable and error-free.
-
 As a Developer, I want automated tests to run on every change to make sure the cleaning code doesn't break.
-
 As a Data Engineer, I want a PowerBI dashboard to see pipeline metrics/trends 
 
-
 Kanban Board:
-
 To Do (Backlog)
-
 • Define data cleaning requirements (e.g. remove nulls).
-
 • Research Azure DevOps pipeline syntax (yaml).
-
 • Design PowerBI dashboard layout.
 
 In Progress
-
-•	[ ] Write Python script for data manipulation (using Pandas).
-
-•	[ ] Set up GitHub Repository and push initial code.
-
-•	[ ] Write Unit Tests for the Python script.
+• Write Python script for data manipulation (using Pandas).
+• Set up GitHub Repository and push initial code.
+• Write Unit Tests for the Python script.
 
 Testing/Review
+• Configure Azure CI/CD Pipeline to run Python script on every "Commit".
+• Verify data output matches library standards.
 
-•	[ ] Configure Azure CI/CD Pipeline to run Python script on every "Commit".
+Data Cleaning Script:
+The script performs the following cleaning steps to ensure data integrity
+Type Conversion: Standardises IDs to integers and dates to datetime objects.
+String Normalisation: Trims whitespace and title-cases book titles.
 
-•	[ ] Verify data output matches library standards.
+Date Validation -
+Calculates a Due Date based on the allowed borrowing weeks.
+Flags and removes records where the Book Returned date is earlier than the Book checkout date.
+Filters for records within a valid date range (2000–2024).
+Formatting: Standardises all column headers to snake_case for easier SQL querying.
 
-Done
+How to Run:
+Option 1: Local Execution
 
-•	[ ] Security practice report completed.
+Install Dependencies:
+Bash
+pip install -r requirements.txt
+Ensure Driver Availability: You must have the ODBC Driver 17 for SQL Server installed on your machine.
 
-•	[ ] Final presentation slides ready.
+Run the Script:
+Bash
+python data_clean.py
 
+Option 2 (WIP): Docker Execution
+This option currently DOES NOT upload data to SQL Server. Requires the upload_to_sql function call to be commented out in the script.
 
+Build the Image:
+Bash
+docker build -t data_clean .
+
+Run the Container:
+Bash
+docker run data_clean
+
+Configuration:
+The script is currently configured with the following defaults in the if __name__ == "__main__": block:
+
+Server: STUDENT06
+Database: LibraryProject
+Table: cleaned_library_data
