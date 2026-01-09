@@ -2,6 +2,8 @@ import pandas as pd
 from sqlalchemy import create_engine
 import urllib
 import logging
+from datetime import datetime
+
 
 # Set up basic logging to track progress
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -14,6 +16,14 @@ def load_data(file_path):
 def transform_data(df):
     # Cleans and standardises dataframe
     logging.info("Starting data transformation...")
+
+    # Initial count for metrics
+    initial_count = len(df)
+
+    # Metric 1: Number of blank rows
+    before_blank_drop = len(df)
+    df.dropna(how = 'all', inplace = True)
+    blank_rows_count = before_blank_drop - len(df)
     
     # Convert IDs to integers
     df['Id'] = df['Id'].astype('Int64')
@@ -30,24 +40,32 @@ def transform_data(df):
     df['Books'] = df['Books'].str.strip().str.title()
     df['Books'] = df['Books'].str.replace('Return Of The Kind', 'Return of the King', case=False)
 
-    # Identify incorrect dates
+    # Metric 2: Number of rows with logic errors dropped
     df['Incorrect Date'] = df['Book Returned'] < df['Book checkout']
-    
-    # Extract weeks and convert to days
-    df['borrow_days'] = df['Days allowed to borrow'].str.extract('(\d+)').fillna(0).astype(int) * 7
-    df['Due Date'] = df['Book checkout'] + pd.to_timedelta(df['borrow_days'], unit='D')
-    
-    # Flag invalid dates
     df['Valid_Date'] = df['Book checkout'].between('2000-01-01', '2024-12-31')
-
-    # Filter and standardise columns
     filtered_df = df.loc[(df['Incorrect Date'] == False) & (df['Valid_Date'] == True)].copy()
+    dropped_rows_count = len(df) - len(filtered_df)
+
+    # Extract weeks and convert to days
+    filtered_df['borrow_days'] = filtered_df['Days allowed to borrow'].str.extract('(\d+)').fillna(0).astype(int) * 7
+    filtered_df['Due Date'] = filtered_df['Book checkout'] + pd.to_timedelta(filtered_df['borrow_days'], unit='D')
+    
+    # Standardise columns
     filtered_df.columns = filtered_df.columns.str.lower().str.replace(' ', '_')
+
+    # Metrics dictionary
+    metrics = {
+        'run_timestamp': datetime.now(),
+        'rows_imported': initial_count,
+        'blank_rows_dropped': blank_rows_count,
+        'logic_rows_dropped': dropped_rows_count,
+        'final_row_count': len(filtered_df)
+    }
     
     logging.info(f"Transformation complete. {len(filtered_df)} records ready.")
-    return filtered_df
+    return filtered_df, metrics
 
-def upload_to_sql(df, server, database, table_name):
+def upload_to_sql(df, metrics, server, database, table_name, metrics_table):
     # Connection and upload to SQL Server
     driver = 'ODBC Driver 17 for SQL Server'
     conn_str = (
@@ -64,7 +82,9 @@ def upload_to_sql(df, server, database, table_name):
         with engine.connect() as conn:
             logging.info("Connected to SQL Server successfully.")
             df.to_sql(table_name, con=engine, if_exists='replace', index=False)
-            logging.info(f"Table '{table_name}' updated in database '{database}'.")
+            metrics_df = pd.DataFrame([metrics])
+            metrics_df.to_sql(metrics_table, con=engine, if_exists='append', index=False)
+            logging.info(f"Tables '{table_name}' & '{metrics_table}' updated in database '{database}'.")
     except Exception as e:
         logging.error(f"Failed to upload to SQL: {e}")
 
@@ -75,16 +95,20 @@ if __name__ == "__main__":
     SQL_SERVER = 'STUDENT06'
     SQL_DATABASE = 'LibraryProject'
     TARGET_TABLE = 'cleaned_library_data'
+    METRICS_TABLE = 'pipeline_metrics_history'
     OUTPUT_CSV = 'output.csv'
+    METRIC_CSV = 'metrics.csv'
 
     # Execution
     raw_df = load_data(FILE_NAME)
-    clean_df = transform_data(raw_df)
+    clean_df, run_metrics = transform_data(raw_df)
     try:
         logging.info("Attempting to upload to SQL Server...")
-        upload_to_sql(clean_df, SQL_SERVER, SQL_DATABASE, TARGET_TABLE)
+        upload_to_sql(clean_df, run_metrics, SQL_SERVER, SQL_DATABASE, TARGET_TABLE, METRICS_TABLE)
     except Exception as e:
         logging.warning(f"SQL Upload failed: {e}")
-        logging.info(f"Falling back to CSV export. Saving to {OUTPUT_CSV}...")
+        logging.info(f"Falling back to CSV export. Saving to {OUTPUT_CSV} and {METRIC_CSV}...")
         clean_df.to_csv(OUTPUT_CSV, index=False)
+        metrics_df = pd.DataFrame([run_metrics])
+        metrics_df.to_csv(METRIC_CSV, index=False)
         logging.info("CSV export complete.")
